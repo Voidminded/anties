@@ -1,20 +1,62 @@
 # simple.world - basic world file example
-# Authors: Richard Vaughan
+# Authors: Richard Vaughan, Sepehr
 # $Id$
 
-paused 0
+include "pioneer.inc"
+include "map.inc"
+
+paused 			1
+speedup 		1
+show_clock 	1
+show_clock_interval 100
+resolution 	0.2
+threads 		4
 
 # configure the GUI window
 window
 (
   size [ 1258.000 962.000 ] # in pixels
-  scale 19.361            
+  
+# Camera options 
+	scale 19.361            
   center [ -6.229  -10.901 ]
   rotate [ 0  0 ]
+
+# perspective camera options
+  pcam_loc [ 0 -4 2 ]
+  pcam_angle [ 70 0 ]
+
+# GUI options
+  show_data 1
+  show_flags 1
+  show_blocks 1
+  show_clock 1
+  show_footprints 0
+  show_grid 1
+  show_trailarrows 0
+  show_trailrise 0
+  show_trailfast 0
+  show_occupancy 0
+  show_tree 0
+  pcam_on 0
+  screenshots 0
 )
 
-position( 
-  pose [ 0 0 0 0 ]
-  ranger()
-  ctrl "basic"
+define agent fancypioneer2dx #pioneer2dx_base_no_sonar
+(
+	color "random"
+	ctrl "basic"
+	ranger()
+	localization "gps"
+	localization_origin [ 0 0 0 0 ]
+  gui_nose 1
+  drive "omni"
 )
+
+agent( pose [-5 -3 0 0 ])
+agent( pose [0 0 0 0 ])
+#position( 
+#  pose [ 0 0 0 0 ]
+#  ranger()
+#  ctrl "basic"
+#)
