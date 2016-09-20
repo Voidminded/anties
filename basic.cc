@@ -9,7 +9,9 @@
 #include "stage.hh"
 #include "map"
 #include "math.h"
+#include "set"
 using namespace Stg;
+using namespace std;
 
 enum RobotState
 {
@@ -35,6 +37,7 @@ typedef struct
     bool foundDist;
     bool avoiding;
     Pose target;
+    set< pair< int, int> > trail;
 } robot_t;
 
 typedef struct
@@ -43,7 +46,7 @@ typedef struct
     double ph ;
 }cell;
 
-std::map <std::pair< int, int>, cell> map;
+std::map <std::pair< int, int>, cell> mp;
 
 /** this is added as a callback to a ranger model, and is called
     whenever the model is updated by Stage.
@@ -58,38 +61,43 @@ int RangerUpdate( ModelRanger* mod, robot_t* robot)
         robot->ranger->Say( "Searching");
     else if(robot->state == HOMING)
         robot->ranger->Say( "Homing");
-     // GUI window
-//    for( int i = 0; i < robot->position->waypoints.size(); i++)
-//    std::cout << robot->position->GetGlobalPose().x << robot->position->GetGlobalPose().y << " " << robot->position->GetGlobalPose().a << std::endl;
+    // GUI window
+    //    for( int i = 0; i < robot->position->waypoints.size(); i++)
+    //    std::cout << robot->position->GetGlobalPose().x << robot->position->GetGlobalPose().y << " " << robot->position->GetGlobalPose().a << std::endl;
 
 
+    robot->trail.insert(pair< int, int>(round(robot->position->GetGlobalPose().x), round(robot->position->GetGlobalPose().y)));
     // map update thingy
     for( int i = -20; i < 20; i++)
         for( int j = -20; j < 20; j++)
-            if(map[std::pair<int, int>(i, j)].ph > 0)
-                map[std::pair<int, int>(i, j)].ph -= 0.001;
+            if(mp[std::pair<int, int>(i, j)].ph > 0)
+                mp[std::pair<int, int>(i, j)].ph -= 0.001;
     if( robot->state == SEARCHING)
     {
-        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].ph += 3;
-        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = robot->position->GetGlobalPose().a;
+        mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = robot->position->GetGlobalPose().a;
+        mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].ph += 3;
     }
     else
     {
-        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].ph += 3;
-        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = -robot->position->GetGlobalPose().a;
+        if( robot->position->GetGlobalPose().a < 0)
+            mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = PI+robot->position->GetGlobalPose().a;
+        else
+            mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = PI-robot->position->GetGlobalPose().a;
+        mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].ph += 3;
     }
+
     if(robot->foundDist)
     {
         bool charged = false;
         int rot = 0;
         for( int i = 0; i < 4; i++)
-            if( sensors[i].ranges[0] < 1)
+            if( sensors[i].ranges[0] < 4)
             {
                 charged = true;
                 rot = -1;
             }
         for( int i = 4; i < 8; i++)
-            if( sensors[i].ranges[0] < 1)
+            if( sensors[i].ranges[0] < 4)
             {
                 charged = true;
                 rot = 1;
@@ -105,18 +113,20 @@ int RangerUpdate( ModelRanger* mod, robot_t* robot)
             {
                 robot->state = HOMING;
                 robot->foundDist = false;
+                robot->trail.clear();
             }
             else
             {
                 robot->state = SEARCHING;
                 robot->foundDist = false;
+                robot->trail.clear();
             }
         }
     }
-//    for( int i = -20; i < 20; i++)
-//        for( int j = -20; j < 20; j++)
-//            std::cout << map[std::pair<int, int>(i, j)].w;
-//    std::cout << std::endl;
+    //    for( int i = -20; i < 20; i++)
+    //        for( int j = -20; j < 20; j++)
+    //            std::cout << map[std::pair<int, int>(i, j)].w;
+    //    std::cout << std::endl;
     return 0;
 }
 
@@ -126,61 +136,91 @@ int LaserUpdate( ModelRanger* mod, robot_t* robot)
     int sample_count = scan.size();
     if( sample_count < 1)
         return 0;
-    double desiredRot = 10;
-    if( robot->state == SEARCHING)
+    if( robot->foundDist)
     {
-        double pheromone = 0;
-        for( int i = -1; i < 2; i++)
-            for( int j = -1; j < 2; j++)
-            {
-                double ph = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].ph;
-                double w = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].w;
-                if( ph > pheromone)
+        double y = robot->target.y - robot->position->GetGlobalPose().y;
+        double x = robot->target.x - robot->position->GetGlobalPose().x;
+        double rotation = normalize( atan2( y, x) - robot->position->GetGlobalPose().a);
+        robot->position->SetSpeed( VEL, 0, rotation);
+    }
+    else
+    {
+        double desiredRot = 10;
+        double x;
+        double y;
+        if( robot->state == SEARCHING)
+        {
+            double pheromone = 0;
+            for( int i = -3; i < 4; i++)
+                for( int j = -3; j < 4; j++)
                 {
-                    pheromone = ph;
-                    desiredRot = w;
+                    if( abs(i) + abs(j) > 5 || robot->trail.find( pair<int, int> (round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))) != robot->trail.end())
+                        continue;
+                    double ph = mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].ph;
+                    double w = mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].w;
+                    if( ph > pheromone)
+                    {
+                        pheromone = ph;
+                        desiredRot = w;
+                    }
+                    x = robot->position->GetGlobalPose().x + i;
+                    y = robot->position->GetGlobalPose().y + j;
                 }
-            }
-    }
-    else if( robot->state == HOMING)
-    {
-        double pheromone = 0;
-        for( int i = -1; i < 2; i++)
-            for( int j = -1; j < 2; j++)
-            {
-                double ph = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].ph;
-                double w = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].w;
-                if( ph > pheromone)
+        }
+        else if( robot->state == HOMING)
+        {
+            double pheromone = 0;
+            for( int i = -3; i < 4; i++)
+                for( int j = -3; j < 4; j++)
                 {
-                    pheromone = ph;
-                    if( w < 0)
-                        desiredRot = PI+w;
-                    else
-                        desiredRot = PI-w;
+                    if( robot->trail.find( pair<int, int> (round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))) != robot->trail.end())
+                        continue;
+                    double ph = mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].ph;
+                    double w = mp[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].w;
+                    if( ph > pheromone)
+                    {
+                        pheromone = ph;
+//                        if( w < 0)
+                            desiredRot = normalize(PI+w);
+//                        else
+//                            desiredRot = PI-w;
+                    }
+                    x = robot->position->GetGlobalPose().x + i;
+                    y = robot->position->GetGlobalPose().y + j;
                 }
-            }
+        }
+        double rot = 0;
+        double vel = VEL;
+        if( desiredRot != 10)
+        {
+    //                double yy = y - robot->position->GetGlobalPose().y;
+    //                double xx = x - robot->position->GetGlobalPose().x;
+    //                double rotation = normalize( atan2( yy, xx) - robot->position->GetGlobalPose().a);
+
+            rot =  atan2(sin(desiredRot- robot->position->GetGlobalPose().a), cos(desiredRot-robot->position->GetGlobalPose().a));
+            if( fabs(rot) > PI/6)
+                vel = 0;
+//            else
+//            {
+//                double yy = y - robot->position->GetGlobalPose().y;
+//                double xx = x - robot->position->GetGlobalPose().x;
+//                double rotation = normalize( atan2( yy, xx) - robot->position->GetGlobalPose().a);
+//                robot->position->SetSpeed( VEL, 0, rotation);
+//                return 0;
+//            }
+        }
+        std::cout << desiredRot << " " << rot <<  std::endl;
+        if( fabs(rot) > 0.3)
+            rot = 0.3*sign(rot);
+        for( int i = 0; i < 90; i++)
+            if( scan[i] < 0)
+                rot = 0.3;
+        for( int i = 90; i < 180; i++)
+            if( scan[i] < 0)
+                rot = -0.3;
+        robot->position->SetSpeed( vel, 0, rot);
+        robot->avoiding = sign(rot);
     }
-    double rot = 0;
-    double vel = VEL;
-    if( desiredRot != 10)
-    {
-        rot =  atan2(sin(desiredRot- robot->position->GetGlobalPose().a), cos(desiredRot-robot->position->GetGlobalPose().a));
-        if( fabs(rot) > PI/6)
-            vel = 0;
-//        else
-//            rot = -desiredRot;
-    }
-    std::cout << desiredRot << " " << rot <<  std::endl;
-    if( fabs(rot) > 0.3)
-        rot = 0.3*sign(rot);
-    for( int i = 0; i < 90; i++)
-        if( scan[i] < 0)
-            rot = 0.3;
-    for( int i = 90; i < 180; i++)
-        if( scan[i] < 0)
-            rot = -0.3;
-    robot->position->SetSpeed( vel, 0, rot);
-    robot->avoiding = sign(rot);
     return 0;
 }
 
@@ -241,8 +281,8 @@ extern "C" int Init( Model* mod )
     for( int i = -20; i < 20; i++)
         for( int j = -20; j < 20; j++)
         {
-            map[std::pair<int, int>(i, j)].w = 0;
-            map[std::pair<int, int>(i, j)].ph = 0;
+            mp[std::pair<int, int>(i, j)].w = 0;
+            mp[std::pair<int, int>(i, j)].ph = 0;
         }
     return 0; //ok
 }
