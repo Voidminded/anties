@@ -4,6 +4,7 @@
 
 include "pioneer.inc"
 include "map.inc"
+include "sick.inc"
 
 paused 			1
 speedup 		1
@@ -50,11 +51,19 @@ define agent fancypioneer2dx #pioneer2dx_base_no_sonar
 	localization "gps"
 	localization_origin [ 0 0 0 0 ]
   gui_nose 1
+  ranger_return 1
   drive "omni"
+  sickbase( sensor( samples 32
+                   range [0 3]
+                   fov 180
+                   color_rgba [0 0 1 0.15] ))
 )
 
 agent( pose [-5 -3 0 0 ])
-agent( pose [0 0 0 0 ])
+agent( pose [0 5 0 0 ])
+agent( pose [3 3 0 0 ])
+#agent( pose [-2 1 0 0 ])
+#agent( pose [-3 -3 0 0 ])
 #position( 
 #  pose [ 0 0 0 0 ]
 #  ranger()
