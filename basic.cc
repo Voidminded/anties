@@ -18,7 +18,12 @@ enum RobotState
     HOMING = 2
 };
 
-#define VEL = 0.9;
+#define VEL 0.9
+#define PI 3.14159265359
+
+template <typename T> int sign(T val) {
+    return (T(0) < val) - (val < T(0));
+}
 
 typedef struct
 {
@@ -26,7 +31,7 @@ typedef struct
     ModelRanger* ranger;
     ModelRanger* laser;
     ModelFiducial* fiducial;
-    enum RobotState state;
+    RobotState state;
     bool foundDist;
     bool avoiding;
     Pose target;
@@ -35,7 +40,7 @@ typedef struct
 typedef struct
 {
     double w;
-    double ph = 0;
+    double ph ;
 }cell;
 
 std::map <std::pair< int, int>, cell> map;
@@ -49,9 +54,11 @@ int RangerUpdate( ModelRanger* mod, robot_t* robot)
 
     // ( inspect the ranger data and decide what to do )
 
-    char toSay[9];
-    sprintf( toSay, "%d", robot->position->GetId());
-    robot->ranger->Say( toSay); // GUI window
+    if( robot->state == SEARCHING)
+        robot->ranger->Say( "Searching");
+    else if(robot->state == HOMING)
+        robot->ranger->Say( "Homing");
+     // GUI window
 //    for( int i = 0; i < robot->position->waypoints.size(); i++)
 //    std::cout << robot->position->GetGlobalPose().x << robot->position->GetGlobalPose().y << " " << robot->position->GetGlobalPose().a << std::endl;
 
@@ -61,9 +68,51 @@ int RangerUpdate( ModelRanger* mod, robot_t* robot)
         for( int j = -20; j < 20; j++)
             if(map[std::pair<int, int>(i, j)].ph > 0)
                 map[std::pair<int, int>(i, j)].ph -= 0.001;
-    map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].ph += 3;
-    map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = robot->position->GetGlobalPose().a;
-
+    if( robot->state == SEARCHING)
+    {
+        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].ph += 3;
+        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = robot->position->GetGlobalPose().a;
+    }
+    else
+    {
+        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].ph += 3;
+        map[std::pair<int, int>(round( robot->position->GetGlobalPose().x), round( robot->position->GetGlobalPose().y))].w = -robot->position->GetGlobalPose().a;
+    }
+    if(robot->foundDist)
+    {
+        bool charged = false;
+        int rot = 0;
+        for( int i = 0; i < 4; i++)
+            if( sensors[i].ranges[0] < 1)
+            {
+                charged = true;
+                rot = -1;
+            }
+        for( int i = 4; i < 8; i++)
+            if( sensors[i].ranges[0] < 1)
+            {
+                charged = true;
+                rot = 1;
+            }
+        if(false && rot)
+        {
+            robot->position->SetSpeed( 0.1, 0, rot*0.9 );
+            robot->avoiding = rot;
+        }
+        if( charged)
+        {
+            if( robot->state == SEARCHING)
+            {
+                robot->state = HOMING;
+                robot->foundDist = false;
+            }
+            else
+            {
+                robot->state = SEARCHING;
+                robot->foundDist = false;
+            }
+        }
+    }
 //    for( int i = -20; i < 20; i++)
 //        for( int j = -20; j < 20; j++)
 //            std::cout << map[std::pair<int, int>(i, j)].w;
@@ -75,17 +124,63 @@ int LaserUpdate( ModelRanger* mod, robot_t* robot)
 {
     const std::vector<meters_t>& scan = robot->laser->GetSensors()[0].ranges;
     int sample_count = scan.size();
-    if( sample_count < 1 )
+    if( sample_count < 1)
         return 0;
-    int rot = 0;
+    double desiredRot = 10;
+    if( robot->state == SEARCHING)
+    {
+        double pheromone = 0;
+        for( int i = -1; i < 2; i++)
+            for( int j = -1; j < 2; j++)
+            {
+                double ph = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].ph;
+                double w = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].w;
+                if( ph > pheromone)
+                {
+                    pheromone = ph;
+                    desiredRot = w;
+                }
+            }
+    }
+    else if( robot->state == HOMING)
+    {
+        double pheromone = 0;
+        for( int i = -1; i < 2; i++)
+            for( int j = -1; j < 2; j++)
+            {
+                double ph = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].ph;
+                double w = map[std::pair<int, int>(round( robot->position->GetGlobalPose().x + i), round( robot->position->GetGlobalPose().y + j))].w;
+                if( ph > pheromone)
+                {
+                    pheromone = ph;
+                    if( w < 0)
+                        desiredRot = PI+w;
+                    else
+                        desiredRot = PI-w;
+                }
+            }
+    }
+    double rot = 0;
+    double vel = VEL;
+    if( desiredRot != 10)
+    {
+        rot =  atan2(sin(desiredRot- robot->position->GetGlobalPose().a), cos(desiredRot-robot->position->GetGlobalPose().a));
+        if( fabs(rot) > PI/6)
+            vel = 0;
+//        else
+//            rot = -desiredRot;
+    }
+    std::cout << desiredRot << " " << rot <<  std::endl;
+    if( fabs(rot) > 0.3)
+        rot = 0.3*sign(rot);
     for( int i = 0; i < 90; i++)
-        if( scan[0] < 3)
-            rot = -1;
+        if( scan[i] < 0)
+            rot = 0.3;
     for( int i = 90; i < 180; i++)
-        if( scan[0] < 3)
-            rot = 1;
-    robot->position->SetSpeed( 0.9, 0, rot*0.3 );
-    robot->avoiding = rot;
+        if( scan[i] < 0)
+            rot = -0.3;
+    robot->position->SetSpeed( vel, 0, rot);
+    robot->avoiding = sign(rot);
     return 0;
 }
 
@@ -94,16 +189,15 @@ int FiducialUpdate( ModelFiducial* fid, robot_t* robot)
     // find the closest teammate
     unsigned int n=0;
     ModelFiducial::Fiducial* fd = fid->GetFiducials(&n);
-    robot->foundDist = false;
     if(n > 0){
         for(int i=0;i<n;i++){
-            if( fd[i].id == 3 && robot->state == RobotState::SEARCHING)
+            if( !robot->foundDist && fd[i].id == 3 && robot->state == SEARCHING)
             {
                 robot->foundDist = true;
                 robot->target.x = fd[i].pose.x;
                 robot->target.y = fd[i].pose.y;
             }
-            else if( fd[i].id == 33 && robot->state == RobotState::HOMING)
+            else if( !robot->foundDist && fd[i].id == 33 && robot->state == HOMING)
             {
                 robot->foundDist = true;
                 robot->target.x = fd[i].pose.x;
@@ -121,6 +215,7 @@ extern "C" int Init( Model* mod )
     robot_t* robot = new robot_t;
     robot->position = (ModelPosition*)mod;
 
+    std::cout << "Initing";
     // subscribe to the ranger, which we use for navigating
     robot->ranger = (ModelRanger*)mod->GetChild( "ranger:0" );
     assert( robot->ranger );
@@ -139,7 +234,7 @@ extern "C" int Init( Model* mod )
     robot->fiducial->Subscribe();
 
     //Robot initialization
-    robot->state = RobotState::SEARCHING;
+    robot->state = SEARCHING;
     robot->foundDist = false;
     robot->avoiding = false;
 

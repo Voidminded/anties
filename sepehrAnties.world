@@ -61,7 +61,7 @@ zone
   name "home"
   fiducial()
   fiducial_return 30
-  ranger_return 	1
+  ranger_return 	1.000
 )
 
 walle
@@ -113,7 +113,7 @@ define agent fancypioneer2dx #pioneer2dx_base_no_sonar
   ranger()
 )
 
-agent( pose [-5.000 -3.000 0.000 0.000 ])
+agent( pose [-11.022 -10.840 0.000 0.000 ])
 #agent( pose [0.000 5.000 0.000 0.000 ])
 #agent( pose [3.000 3.000 0.000 0.000 ])
 #agent( pose [-2.000 1.000 0.000 0.000 ])
