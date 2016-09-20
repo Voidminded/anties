@@ -5,6 +5,7 @@
 include "pioneer.inc"
 include "map.inc"
 include "sick.inc"
+include "walle.inc"
 
 paused 			1
 speedup 		1
@@ -43,25 +44,44 @@ window
   screenshots 0
 )
 
+floorplan
+(
+  name "blank"
+  size [40.000 40.000 0.800]
+  pose [0 0 0 0]
+  bitmap "rink.png"
+  obstacle_return 1
+
+)
+
+walle
+(
+  name "walle"
+  pose [ 0 0 0 0 ]
+  fiducial()
+  fiducial_return	3
+)
+
+
 define agent fancypioneer2dx #pioneer2dx_base_no_sonar
 (
 	color "random"
 	ctrl "basic"
-	ranger()
 	localization "gps"
 	localization_origin [ 0 0 0 0 ]
   gui_nose 1
   ranger_return 1
   drive "omni"
-  sickbase( sensor( samples 32
-                   range [0 3]
-                   fov 180
-                   color_rgba [0 0 1 0.15] ))
+  fiducial()
+  fiducial_return 1
+  obstacle_return 1
+  fancysicklaser( pose [ 0.000 0.000 0.000 0.000 ] )
+  ranger()
 )
 
 agent( pose [-5 -3 0 0 ])
-agent( pose [0 5 0 0 ])
-agent( pose [3 3 0 0 ])
+#agent( pose [0 5 0 0 ])
+#agent( pose [3 3 0 0 ])
 #agent( pose [-2 1 0 0 ])
 #agent( pose [-3 -3 0 0 ])
 #position( 
