@@ -212,12 +212,15 @@ int LaserUpdate( ModelRanger* mod, robot_t* robot)
         std::cout << desiredRot << " " << rot <<  std::endl;
         if( fabs(rot) > 0.3)
             rot = 0.3*sign(rot);
-        for( int i = 0; i < 90; i++)
-            if( scan[i] < 0)
-                rot = 0.3;
-        for( int i = 90; i < 180; i++)
-            if( scan[i] < 0)
-                rot = -0.3;
+        if( false && vel != 0)
+        {
+            for( int i = 0; i < 90; i++)
+                if( scan[i] < 3)
+                    rot = 0.3;
+            for( int i = 90; i < 180; i++)
+                if( scan[i] < 3)
+                    rot = -0.3;
+        }
         robot->position->SetSpeed( vel, 0, rot);
         robot->avoiding = sign(rot);
     }
