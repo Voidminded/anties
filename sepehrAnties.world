@@ -6,9 +6,10 @@ include "pioneer.inc"
 include "map.inc"
 include "sick.inc"
 include "walle.inc"
+include "pheromone.inc"
 
 paused 			1
-speedup 		1
+speedup 		1.000
 show_clock 	1
 show_clock_interval 100
 resolution 	0.2
@@ -17,16 +18,16 @@ threads 		4
 # configure the GUI window
 window
 (
-  size [ 1258.000 962.000 ] # in pixels
+  size [ 1258 962 ] # in pixels
   
 # Camera options 
-	scale 19.361            
-  center [ -6.229  -10.901 ]
-  rotate [ 0  0 ]
+	scale 17.601            
+  center [ -8.006  -12.683 ]
+  rotate [ 0.000  0.000 ]
 
 # perspective camera options
-  pcam_loc [ 0 -4 2 ]
-  pcam_angle [ 70 0 ]
+  pcam_loc [ 0.000 -4.000 2.000 ]
+  pcam_angle [ 70.000 0.000 ]
 
 # GUI options
   show_data 1
@@ -39,7 +40,6 @@ window
   show_trailrise 0
   show_trailfast 0
   show_occupancy 0
-  show_tree 0
   pcam_on 0
   screenshots 0
 )
@@ -48,20 +48,54 @@ floorplan
 (
   name "blank"
   size [40.000 40.000 0.800]
-  pose [0 0 0 0]
+  pose [0.000 0.000 0.000 0.000]
   bitmap "rink.png"
   obstacle_return 1
 
 )
 
+zone
+(
+  color "green"
+  pose [ -12.000 -12.000 0.000 0.000 ]
+  name "home"
+  fiducial()
+  fiducial_return 30
+  ranger_return 	1
+)
+
 walle
 (
   name "walle"
-  pose [ 0 0 0 0 ]
+  color "yellow"
+  pose [ 7.686 -10.599 0.000 126.051 ]
+  size [3.000 3.000 3.000]
   fiducial()
   fiducial_return	3
+  laser_return 		0
 )
 
+walle
+(
+  name "walle"
+  color "blue"
+  pose [ -11.611 10.278 0.000 0.000 ]
+  size [3.000 3.000 3.000]
+  fiducial()
+  fiducial_return	3
+  laser_return  	0
+)
+
+walle
+(
+  name "walle"
+  color "cyan"
+  pose [ 11.415 9.245 0.000 -142.276 ]
+  size [3.000 3.000 3.000]
+  fiducial()
+  fiducial_return	3
+  laser_return		0
+)
 
 define agent fancypioneer2dx #pioneer2dx_base_no_sonar
 (
@@ -70,7 +104,7 @@ define agent fancypioneer2dx #pioneer2dx_base_no_sonar
 	localization "gps"
 	localization_origin [ 0 0 0 0 ]
   gui_nose 1
-  ranger_return 1
+  ranger_return 1.000
   drive "omni"
   fiducial()
   fiducial_return 1
@@ -79,10 +113,10 @@ define agent fancypioneer2dx #pioneer2dx_base_no_sonar
   ranger()
 )
 
-agent( pose [-5 -3 0 0 ])
-#agent( pose [0 5 0 0 ])
-#agent( pose [3 3 0 0 ])
-#agent( pose [-2 1 0 0 ])
+agent( pose [-5.000 -3.000 0.000 0.000 ])
+#agent( pose [0.000 5.000 0.000 0.000 ])
+#agent( pose [3.000 3.000 0.000 0.000 ])
+#agent( pose [-2.000 1.000 0.000 0.000 ])
 #agent( pose [-3 -3 0 0 ])
 #position( 
 #  pose [ 0 0 0 0 ]
